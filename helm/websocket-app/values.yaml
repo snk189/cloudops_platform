@@ -2,7 +2,7 @@ replicaCount: 3
 
 image:
   repository: websocket-app
-  tag: latest
+  tag: "sha-bda678b"
   pullPolicy: IfNotPresent
 
 namespace: websocket-app
