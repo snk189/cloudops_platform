@@ -1,0 +1,130 @@
+{
+  "__inputs": [],
+  "__requires": [],
+  "annotations": { "list": [] },
+  "description": "WebSocket Counter — Production Dashboard",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 100,
+      "title": "Application",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "steps": [{"color": "green","value": null}, {"color": "yellow","value": 50}, {"color": "red","value": 100}] } }
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 1 },
+      "id": 1,
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "auto", "textMode": "auto", "colorMode": "background" },
+      "title": "Active Users",
+      "type": "stat",
+      "targets": [{ "expr": "websocket_active_users_total", "legendFormat": "Users", "refId": "A" }]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" } } },
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 1 },
+      "id": 2,
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" },
+      "title": "Open WebSocket Connections",
+      "type": "stat",
+      "targets": [{ "expr": "sum(websocket_active_connections_total)", "legendFormat": "Connections", "refId": "A" }]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": {} },
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 1 },
+      "id": 3,
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value" },
+      "title": "Counter Increments / 5m",
+      "type": "stat",
+      "targets": [{ "expr": "sum(rate(websocket_counter_increments_total[5m])) * 300", "legendFormat": "Increments", "refId": "A" }]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "steps": [{"color": "green","value": null}, {"color": "red","value": 1}] } } },
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 1 },
+      "id": 4,
+      "options": { "reduceOptions": { "calcs": ["sum"] }, "colorMode": "background" },
+      "title": "Redis Failover Events",
+      "type": "stat",
+      "targets": [{ "expr": "sum(redis_failover_events_total)", "legendFormat": "Failovers", "refId": "A" }]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "custom": { "lineWidth": 2 } } },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 5 },
+      "id": 5,
+      "title": "Counter Increments Rate by Pod",
+      "type": "timeseries",
+      "targets": [{ "expr": "rate(websocket_counter_increments_total[1m])", "legendFormat": "{{ pod }}", "refId": "A" }]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "custom": { "lineWidth": 2 } } },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 5 },
+      "id": 6,
+      "title": "WebSocket Messages by Type",
+      "type": "timeseries",
+      "targets": [{ "expr": "sum by(type) (rate(websocket_messages_received_total[1m]))", "legendFormat": "{{ type }}", "refId": "A" }]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 13 },
+      "id": 101,
+      "title": "Infrastructure",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "custom": { "lineWidth": 2 } } },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 14 },
+      "id": 7,
+      "title": "Pod CPU Usage",
+      "type": "timeseries",
+      "targets": [{ "expr": "sum by(pod) (rate(container_cpu_usage_seconds_total{namespace=\"websocket-app\",container=\"app\"}[1m]))", "legendFormat": "{{ pod }}", "refId": "A" }]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "custom": { "lineWidth": 2 }, "unit": "bytes" } },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 14 },
+      "id": 8,
+      "title": "Pod Memory Usage",
+      "type": "timeseries",
+      "targets": [{ "expr": "sum by(pod) (container_memory_working_set_bytes{namespace=\"websocket-app\",container=\"app\"})", "legendFormat": "{{ pod }}", "refId": "A" }]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 22 },
+      "id": 102,
+      "title": "Logs (Loki)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "loki", "uid": "loki" },
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 23 },
+      "id": 9,
+      "title": "Application Logs",
+      "type": "logs",
+      "options": { "dedupStrategy": "none", "enableLogDetails": true, "showTime": true },
+      "targets": [{ "expr": "{namespace=\"websocket-app\"} | json", "legendFormat": "", "refId": "A" }]
+    }
+  ],
+  "schemaVersion": 38,
+  "tags": ["websocket", "production", "redis"],
+  "templating": { "list": [] },
+  "time": { "from": "now-1h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "WebSocket Counter — Production",
+  "uid": "websocket-prod-001",
+  "version": 1
+}

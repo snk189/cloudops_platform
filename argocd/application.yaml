@@ -1,0 +1,26 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: websocket-app
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    # Replace with your actual GitHub repo URL
+    repoURL: https://github.com/YOUR_USERNAME/live-counter
+    targetRevision: HEAD
+    path: helm/websocket-app
+    helm:
+      valueFiles:
+        - values.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: websocket-app
+  syncPolicy:
+    automated:
+      prune: true        # Remove resources no longer in Git
+      selfHeal: true     # Re-sync if cluster state drifts from Git
+    syncOptions:
+      - CreateNamespace=true

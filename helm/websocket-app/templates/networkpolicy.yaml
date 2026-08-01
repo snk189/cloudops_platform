@@ -1,0 +1,115 @@
+{{- if .Values.networkPolicy.enabled }}
+# ── Allow Ingress controller → app pods ──────────────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-to-app
+  namespace: {{ .Values.namespace }}
+spec:
+  podSelector:
+    matchLabels:
+      app: websocket-node
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 3000
+    # Allow Prometheus to scrape /metrics
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+      ports:
+        - protocol: TCP
+          port: 3000
+---
+# ── Allow app pods → Redis sentinels ─────────────────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-app-to-redis
+  namespace: {{ .Values.namespace }}
+spec:
+  podSelector:
+    matchLabels:
+      app: redis-primary
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: websocket-node
+        - podSelector:
+            matchExpressions:
+              - key: app
+                operator: In
+                values: [sentinel-1, sentinel-2, sentinel-3]
+        - podSelector:
+            matchLabels:
+              app: redis-replica
+      ports:
+        - protocol: TCP
+          port: 6379
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-app-to-replica
+  namespace: {{ .Values.namespace }}
+spec:
+  podSelector:
+    matchLabels:
+      app: redis-replica
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: websocket-node
+        - podSelector:
+            matchExpressions:
+              - key: app
+                operator: In
+                values: [sentinel-1, sentinel-2, sentinel-3]
+        - podSelector:
+            matchLabels:
+              app: redis-primary
+      ports:
+        - protocol: TCP
+          port: 6379
+---
+# ── Allow sentinel internal communication ────────────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-sentinel-internal
+  namespace: {{ .Values.namespace }}
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values: [sentinel-1, sentinel-2, sentinel-3]
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: websocket-node
+        - podSelector:
+            matchExpressions:
+              - key: app
+                operator: In
+                values: [sentinel-1, sentinel-2, sentinel-3]
+      ports:
+        - protocol: TCP
+          port: 26379
+{{- end }}

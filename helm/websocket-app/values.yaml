@@ -1,0 +1,64 @@
+replicaCount: 3
+
+image:
+  repository: websocket-app
+  tag: latest
+  pullPolicy: IfNotPresent
+
+namespace: websocket-app
+
+app:
+  port: 3000
+
+config:
+  nodeEnv: production
+  redisSentinelHosts: "sentinel-1,sentinel-2,sentinel-3"
+  otlpEndpoint: "http://tempo.monitoring.svc.cluster.local:4318"
+
+resources:
+  requests:
+    cpu: "100m"
+    memory: "128Mi"
+  limits:
+    cpu: "500m"
+    memory: "512Mi"
+
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+
+redis:
+  primary:
+    storage: 1Gi
+  replica:
+    storage: 1Gi
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/websocket-services: "app-service"
+
+serviceMonitor:
+  enabled: true
+  namespace: monitoring
+  interval: 15s
+
+networkPolicy:
+  enabled: true
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 1000
+
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false
+  capabilities:
+    drop:
+      - ALL

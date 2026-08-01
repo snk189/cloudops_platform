@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+  namespace: websocket-app
+data:
+  NODE_ENV: development
+  REDIS_SENTINEL_HOSTS: "sentinel-1,sentinel-2,sentinel-3"

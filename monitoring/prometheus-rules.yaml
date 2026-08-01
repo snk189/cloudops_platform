@@ -1,0 +1,51 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: websocket-app-alerts
+  namespace: monitoring
+  labels:
+    release: kube-prometheus-stack
+spec:
+  groups:
+    - name: websocket-app
+      interval: 30s
+      rules:
+        # Alert when a pod goes down (missing for >60s)
+        - alert: WebSocketPodDown
+          expr: absent(kube_pod_status_ready{namespace="websocket-app", condition="true"})
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: "WebSocket app pod is down"
+            description: "No ready pods in websocket-app namespace for more than 1 minute."
+
+        # Alert when Redis failover detected
+        - alert: RedisMasterFailover
+          expr: increase(redis_failover_events_total[5m]) > 0
+          for: 0m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Redis master failover detected"
+            description: "Redis Sentinel has promoted a new master in the last 5 minutes."
+
+        # Alert when active users spike suddenly
+        - alert: ActiveUsersSpiking
+          expr: websocket_active_users_total > 100
+          for: 2m
+          labels:
+            severity: info
+          annotations:
+            summary: "High number of active WebSocket users"
+            description: "{{ $value }} users currently connected."
+
+        # Alert when pod count falls below minimum replicas
+        - alert: InsufficientReplicas
+          expr: kube_deployment_status_replicas_available{namespace="websocket-app", deployment="app-deployment"} < 3
+          for: 2m
+          labels:
+            severity: warning
+          annotations:
+            summary: "App deployment has insufficient replicas"
+            description: "Only {{ $value }} replicas available, expected >= 3."

@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: app-service
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: websocket-node
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: {{ .Values.app.port }}
+      name: http
+  selector:
+    app: websocket-node

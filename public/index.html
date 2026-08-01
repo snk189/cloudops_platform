@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Counter</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f4f7f6;
+            color: #333;
+        }
+        .container {
+            text-align: center;
+            background: white;
+            padding: 40px;
+            border-radius: 10px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+            min-width: 300px;
+        }
+        h1 {
+            margin-top: 0;
+        }
+        #counter-display {
+            font-size: 4rem;
+            font-weight: bold;
+            color: #007bff;
+            margin: 20px 0;
+            transition: transform 0.15s ease-in-out;
+        }
+        input[type="text"] {
+            padding: 10px;
+            font-size: 1.2rem;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            width: 80%;
+            margin-bottom: 20px;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 1.2rem;
+            color: white;
+            background-color: #007bff;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        #status {
+            margin-top: 20px;
+            font-size: 0.9rem;
+            font-weight: bold;
+        }
+        .connected { color: #28a745; }
+        .disconnected { color: #dc3545; }
+        
+        #counter-section { display: none; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Live Counter</h1>
+        
+        <div id="login-section">
+            <input type="text" id="username-input" placeholder="Enter your name (e.g. User 1)" />
+            <br />
+            <button id="join-btn">JOIN</button>
+        </div>
+
+        <div id="counter-section">
+            <h2 id="welcome-message"></h2>
+            <div id="counter-display">...</div>
+            <button id="increment-btn">INCREASE</button>
+            <div id="status" class="disconnected">Status: Disconnected</div>
+            <div id="container-info" style="margin-top: 15px; font-size: 0.9rem; color: #555;">
+                Connected Backend Container: <strong>Unknown</strong>
+            </div>
+            <div id="primary-info" style="margin-top: 5px; font-size: 0.9rem; color: #d35400;">
+                Current Redis Primary: <strong>Unknown</strong>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const loginSection = document.getElementById('login-section');
+        const counterSection = document.getElementById('counter-section');
+        const usernameInput = document.getElementById('username-input');
+        const joinBtn = document.getElementById('join-btn');
+        const welcomeMessage = document.getElementById('welcome-message');
+        
+        const counterDisplay = document.getElementById('counter-display');
+        const incrementBtn = document.getElementById('increment-btn');
+        const statusDisplay = document.getElementById('status');
+        const containerInfo = document.querySelector('#container-info strong');
+        const primaryInfo = document.querySelector('#primary-info strong');
+
+        let ws;
+        let currentUsername = '';
+        let reconnectTimeout;
+
+        joinBtn.addEventListener('click', () => {
+            const name = usernameInput.value.trim();
+            if (!name) return alert('Please enter a name');
+            currentUsername = name;
+            
+            loginSection.style.display = 'none';
+            counterSection.style.display = 'block';
+            welcomeMessage.textContent = `Welcome, ${currentUsername}`;
+
+            connectWebSocket();
+        });
+
+        function connectWebSocket() {
+            if (ws && ws.readyState === WebSocket.CONNECTING) return;
+            
+            let wsUrl = '';
+            if (window.location.protocol === 'file:') {
+                wsUrl = 'ws://127.0.0.1:9091';
+            } else {
+                const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                wsUrl = `${protocol}//${window.location.host}`;
+            }
+            ws = new WebSocket(wsUrl);
+
+            let pingInterval;
+            let pongTimeout;
+
+            ws.addEventListener('open', () => {
+                statusDisplay.textContent = 'Status: Connected';
+                statusDisplay.className = 'connected';
+                console.log('WebSocket connection established.');
+                
+                // Clear any pending reconnects
+                clearTimeout(reconnectTimeout);
+                
+                // Send join event and implicitly ask for sync
+                ws.send(JSON.stringify({ type: 'join', username: currentUsername }));
+                ws.send(JSON.stringify({ type: 'sync' }));
+
+                pingInterval = setInterval(() => {
+                    if (ws.readyState === WebSocket.OPEN) {
+                        ws.send(JSON.stringify({ type: 'ping' }));
+                        
+                        // Close connection if no pong in 3 seconds
+                        clearTimeout(pongTimeout);
+                        pongTimeout = setTimeout(() => {
+                            console.log('Pong timeout, closing connection');
+                            ws.close();
+                        }, 3000);
+                    }
+                }, 5000);
+            });
+
+            ws.addEventListener('close', () => {
+                statusDisplay.textContent = 'Status: Disconnected - Reconnecting...';
+                statusDisplay.className = 'disconnected';
+                console.log('WebSocket connection closed. Reconnecting in 1s...');
+                
+                clearInterval(pingInterval);
+                clearTimeout(pongTimeout);
+                
+                // Reconnect loop
+                clearTimeout(reconnectTimeout);
+                reconnectTimeout = setTimeout(() => {
+                    connectWebSocket();
+                }, 500);
+            });
+
+            ws.addEventListener('error', (err) => {
+                console.error('WebSocket error:', err);
+                ws.close();
+            });
+
+            ws.addEventListener('message', (event) => {
+                const data = JSON.parse(event.data);
+                if (data.type === 'pong') {
+                    clearTimeout(pongTimeout);
+                    return;
+                }
+                if (data.type === 'UPDATE_COUNTER') {
+                    counterDisplay.textContent = data.value;
+                    
+                    counterDisplay.style.transform = 'scale(1.2)';
+                    setTimeout(() => {
+                        counterDisplay.style.transform = 'scale(1)';
+                    }, 150);
+                } else if (data.type === 'CONTAINER_INFO') {
+                    containerInfo.textContent = data.hostname;
+                } else if (data.type === 'PRIMARY_INFO') {
+                    primaryInfo.textContent = data.primary;
+                }
+            });
+        }
+
+        incrementBtn.addEventListener('click', () => {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: 'increment', username: currentUsername }));
+            } else {
+                alert('Wait for the WebSocket connection to establish.');
+            }
+        });
+    </script>
+</body>
+</html>

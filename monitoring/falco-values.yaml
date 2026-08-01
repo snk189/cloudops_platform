@@ -1,0 +1,49 @@
+# Falco Helm override values
+# Apply via: helm upgrade --install falco falcosecurity/falco -n falco --create-namespace -f monitoring/falco-values.yaml
+
+driver:
+  kind: modern_ebpf
+
+falcosidekick:
+  enabled: true
+  config:
+    slack:
+      webhookurl: "https://hooks.slack.com/services/YOUR_SLACK_WEBHOOK_URL"
+      minimumpriority: "warning"
+  webui:
+    enabled: true
+
+customRules:
+  websocket-app-rules.yaml: |-
+    - rule: Unexpected Shell in WebSocket App
+      desc: Detects shell execution in the websocket-counter container (should never happen)
+      condition: >
+        spawned_process
+        and container.name = "app"
+        and proc.name in (shell_binaries)
+      output: >
+        Shell spawned in websocket container
+        (user=%user.name proc=%proc.name parent=%proc.pname
+        cmdline=%proc.cmdline container=%container.name image=%container.image.repository)
+      priority: CRITICAL
+      tags: [websocket-app, security]
+
+    - rule: Redis Write from Non-App Container
+      desc: Detects unexpected connections to Redis port from containers not belonging to the app
+      condition: >
+        inbound_outbound
+        and fd.sport in (6379, 26379)
+        and not container.name in (app, sentinel, redis)
+      output: >
+        Unexpected Redis connection
+        (container=%container.name user=%user.name)
+      priority: WARNING
+      tags: [redis, security]
+
+falco:
+  grpc:
+    enabled: true
+  grpcOutput:
+    enabled: true
+  jsonOutput: true
+  logLevel: info

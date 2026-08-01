@@ -1,0 +1,38 @@
+# Loki-stack Helm override values  
+# Apply via: helm upgrade --install loki grafana/loki-stack -n monitoring --create-namespace -f monitoring/loki-values.yaml
+
+loki:
+  enabled: true
+  persistence:
+    enabled: true
+    size: 5Gi
+  config:
+    schema_config:
+      configs:
+        - from: 2024-01-01
+          store: boltdb-shipper
+          object_store: filesystem
+          schema: v11
+          index:
+            prefix: index_
+            period: 24h
+
+promtail:
+  enabled: true
+  config:
+    snippets:
+      # Parse structured JSON logs from the Node.js app pods
+      pipelineStages:
+        - docker: {}
+        - json:
+            expressions:
+              level: level
+              pod: pod
+              msg: msg
+        - labels:
+            level:
+            pod:
+        - output:
+            source: msg
+    clients:
+      - url: http://loki.monitoring.svc.cluster.local:3100/loki/api/v1/push

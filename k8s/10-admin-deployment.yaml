@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: admin-deployment
+  namespace: websocket-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: admin-node
+  template:
+    metadata:
+      labels:
+        app: admin-node
+    spec:
+      serviceAccountName: app-service-account
+      containers:
+      - name: app
+        image: websocket-app:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 3000
+        envFrom:
+        - configMapRef:
+            name: app-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: admin-service
+  namespace: websocket-app
+spec:
+  selector:
+    app: admin-node
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 3000

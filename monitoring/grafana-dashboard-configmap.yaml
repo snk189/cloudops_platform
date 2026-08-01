@@ -1,0 +1,15 @@
+# ConfigMap to import the Grafana dashboard via sidecar
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboards
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"   # This label triggers the Grafana sidecar to import it
+data:
+  websocket-dashboard.json: |
+    # The content here is loaded from grafana-dashboard.json at deploy time.
+    # Run this command to create the ConfigMap from the file:
+    #   kubectl create configmap grafana-dashboards \
+    #     --from-file=websocket-dashboard.json=monitoring/grafana-dashboard.json \
+    #     -n monitoring --dry-run=client -o yaml | kubectl apply -f -

@@ -1,0 +1,131 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sentinel-1
+  namespace: websocket-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sentinel-1
+  template:
+    metadata:
+      labels:
+        app: sentinel-1
+    spec:
+      containers:
+      - name: sentinel
+        image: redis:7-alpine
+        command: ["sh", "-c"]
+        args:
+          - |
+            PRIMARY_IP=$$(getent hosts redis-primary | cut -d ' ' -f 1)
+            echo 'port 26379' > /tmp/sentinel.conf
+            echo "sentinel monitor mymaster $$PRIMARY_IP 6379 2" >> /tmp/sentinel.conf
+            echo 'sentinel down-after-milliseconds mymaster 2000' >> /tmp/sentinel.conf
+            echo 'sentinel failover-timeout mymaster 2000' >> /tmp/sentinel.conf
+            echo 'sentinel resolve-hostnames yes' >> /tmp/sentinel.conf
+            echo 'sentinel announce-hostnames yes' >> /tmp/sentinel.conf
+            redis-sentinel /tmp/sentinel.conf
+        ports:
+        - containerPort: 26379
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sentinel-1
+  namespace: websocket-app
+spec:
+  ports:
+  - port: 26379
+    targetPort: 26379
+  selector:
+    app: sentinel-1
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sentinel-2
+  namespace: websocket-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sentinel-2
+  template:
+    metadata:
+      labels:
+        app: sentinel-2
+    spec:
+      containers:
+      - name: sentinel
+        image: redis:7-alpine
+        command: ["sh", "-c"]
+        args:
+          - |
+            PRIMARY_IP=$$(getent hosts redis-primary | cut -d ' ' -f 1)
+            echo 'port 26379' > /tmp/sentinel.conf
+            echo "sentinel monitor mymaster $$PRIMARY_IP 6379 2" >> /tmp/sentinel.conf
+            echo 'sentinel down-after-milliseconds mymaster 2000' >> /tmp/sentinel.conf
+            echo 'sentinel failover-timeout mymaster 2000' >> /tmp/sentinel.conf
+            echo 'sentinel resolve-hostnames yes' >> /tmp/sentinel.conf
+            echo 'sentinel announce-hostnames yes' >> /tmp/sentinel.conf
+            redis-sentinel /tmp/sentinel.conf
+        ports:
+        - containerPort: 26379
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sentinel-2
+  namespace: websocket-app
+spec:
+  ports:
+  - port: 26379
+    targetPort: 26379
+  selector:
+    app: sentinel-2
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sentinel-3
+  namespace: websocket-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sentinel-3
+  template:
+    metadata:
+      labels:
+        app: sentinel-3
+    spec:
+      containers:
+      - name: sentinel
+        image: redis:7-alpine
+        command: ["sh", "-c"]
+        args:
+          - |
+            PRIMARY_IP=$$(getent hosts redis-primary | cut -d ' ' -f 1)
+            echo 'port 26379' > /tmp/sentinel.conf
+            echo "sentinel monitor mymaster $$PRIMARY_IP 6379 2" >> /tmp/sentinel.conf
+            echo 'sentinel down-after-milliseconds mymaster 2000' >> /tmp/sentinel.conf
+            echo 'sentinel failover-timeout mymaster 2000' >> /tmp/sentinel.conf
+            echo 'sentinel resolve-hostnames yes' >> /tmp/sentinel.conf
+            echo 'sentinel announce-hostnames yes' >> /tmp/sentinel.conf
+            redis-sentinel /tmp/sentinel.conf
+        ports:
+        - containerPort: 26379
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sentinel-3
+  namespace: websocket-app
+spec:
+  ports:
+  - port: 26379
+    targetPort: 26379
+  selector:
+    app: sentinel-3

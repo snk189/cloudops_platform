@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Production Platform Operations Center</title>
+    <style>
+        :root {
+            --bg-color: #f8fafc;
+            --bg-panel: #ffffff;
+            --text-color: #334155;
+            --text-main: #475569;
+            --text-bright: #0f172a;
+            --accent-blue: #2563eb;
+            --accent-green: #16a34a;
+            --accent-red: #dc2626;
+            --accent-orange: #f59e0b;
+            --border-color: #e2e8f0;
+        }
+        body {
+            font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            box-sizing: border-box;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 20px;
+            background-color: var(--accent-blue);
+            color: white;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+        .header h1 { margin: 0; font-size: 1.5rem; color: white; }
+        .status-indicator { font-weight: bold; }
+        
+        .main-container {
+            display: flex;
+            flex: 1;
+            gap: 15px;
+            overflow: hidden;
+        }
+        .panel {
+            background-color: var(--bg-panel);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+        }
+        .tree-panel { flex: 0 0 300px; overflow-y: auto; }
+        .ops-panel { flex: 1; overflow-y: auto; }
+        .events-panel { flex: 0 0 350px; overflow-y: auto; }
+        
+        /* Tree Explorer */
+        .tree-node { margin-left: 15px; border-left: 1px dashed var(--border-color); padding-left: 10px; }
+        .tree-item { 
+            cursor: pointer; padding: 4px; 
+            border-radius: 4px; 
+            color: var(--text-main);
+            transition: background-color 0.2s;
+        }
+        .tree-item:hover { background-color: #f1f5f9; color: var(--accent-blue); }
+        .tree-item.namespace { font-weight: bold; color: var(--accent-blue); }
+        
+        /* Ops Grid */
+        .ops-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .ops-card {
+            background-color: var(--bg-panel);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 15px;
+            box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.02);
+        }
+        .ops-card h3 { margin-bottom: 10px; border-bottom: 1px solid var(--border-color); padding-bottom: 5px; color: var(--text-bright); }
+        .stat-value { font-weight: bold; color: var(--text-bright); font-size: 1.2rem; }
+        
+        /* Timeline */
+        .timeline { flex: 1; overflow-y: auto; font-family: monospace; font-size: 0.85rem; padding-right: 5px; }
+        .timeline-event { margin-bottom: 8px; border-bottom: 1px solid var(--border-color); padding-bottom: 5px; color: var(--text-main); }
+        .timeline-event .time { color: var(--accent-blue); font-weight: bold; }
+        .timeline-event .event-type { color: var(--accent-orange); }
+        
+        /* Arch Diagram */
+        .arch-diagram {
+            background: var(--bg-color);
+            border: 1px solid var(--border-color);
+            padding: 15px;
+            border-radius: 5px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            margin-bottom: 15px;
+            color: var(--accent-green);
+        }
+
+        /* Buttons */
+        .btn {
+            background: var(--accent-blue);
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: opacity 0.2s;
+        }
+        .btn:hover { opacity: 0.9; }
+        .btn-danger { background: var(--accent-red); }
+        .btn-danger:hover { opacity: 0.9; }
+        
+        /* Details Modal */
+        #details-modal {
+            display: none;
+            position: fixed;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            background: var(--bg-panel);
+            border: 1px solid var(--border-color);
+            box-shadow: 0 10px 25px -5px rgba(0,0,0,0.2);
+            padding: 20px;
+            border-radius: 8px;
+            z-index: 1000;
+            width: 80%;
+            max-height: 80%;
+            overflow-y: auto;
+            color: var(--text-color);
+        }
+        #modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.5);
+            backdrop-filter: blur(2px);
+            z-index: 999;
+        }
+        .close-btn {
+            float: right;
+            cursor: pointer;
+            color: var(--accent-red);
+            font-weight: bold;
+        }
+        pre { background: var(--bg-color); padding: 10px; border-radius: 5px; border: 1px solid var(--border-color); overflow-x: auto; color: var(--text-main); }
+        .healthy { color: var(--accent-green); font-weight: bold; }
+        .unhealthy { color: var(--accent-red); font-weight: bold; }
+        
+        /* Toasts */
+        .toast-container { position: fixed; bottom: 20px; right: 20px; z-index: 9999; display: flex; flex-direction: column; gap: 10px; }
+        .toast { padding: 12px 20px; background: white; border-left: 4px solid var(--accent-blue); border-radius: 4px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); font-weight: 500; animation: slideIn 0.3s ease-out forwards; min-width: 250px; }
+        .toast.success { border-left-color: var(--accent-green); }
+        .toast.error { border-left-color: var(--accent-red); }
+        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        @keyframes fadeOut { to { opacity: 0; transform: translateY(10px); } }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h1>Production Platform Operations Center</h1>
+        <div id="connection-status" class="status-indicator">Connecting...</div>
+    </div>
+
+    <div class="main-layout">
+        <!-- Resource Explorer moved to bottom -->
+        <!-- Central Ops -->
+        <div class="panel ops-panel">
+            <h2>Cluster Status</h2>
+            <div class="ops-grid">
+                <div class="ops-card">
+                    <h3>Application</h3>
+                    <div>Pods Running: <span id="stat-pods" class="stat-value">0</span></div>
+                    <div>Total Users: <span id="stat-users" class="stat-value">0</span></div>
+                    <div>Connections: <span id="stat-conns" class="stat-value">0</span></div>
+                </div>
+                <div class="ops-card">
+                    <h3>Redis Topology</h3>
+                    <div>Primary: <span id="stat-redis-primary" class="stat-value">Unknown</span></div>
+                    <div>Replica: <span id="stat-redis-replica" class="stat-value">Unknown</span> (<span id="stat-replica-status">Unknown</span>)</div>
+                    <div>Sentinel Leader: <span id="stat-sentinel-leader" class="stat-value">Unknown</span></div>
+                    <div>Sentinels: <span id="stat-sentinels-count" class="stat-value">0</span></div>
+                    <div>Latency: <span id="stat-redis-latency" class="stat-value">0</span> ms</div>
+                    <div>Failovers: <span id="stat-redis-failovers" class="stat-value">0</span></div>
+                </div>
+            </div>
+
+            <h2>Platform Control Panel & Chaos</h2>
+            <div style="display: flex; flex-wrap: wrap; gap: 5px;">
+                <button class="btn btn-danger" onclick="sendOp('DELETE_APP_POD')">Delete App Pod</button>
+                <button class="btn btn-danger" onclick="sendOp('FAIL_APP_POD')">Fail App Pod</button>
+                <button class="btn btn-danger" onclick="sendOp('DELETE_REDIS_POD')">Delete Redis</button>
+                <button class="btn btn-danger" onclick="sendOp('FAIL_REDIS_POD')">Fail Redis</button>
+                <button class="btn btn-danger" onclick="sendOp('STRESS_CPU')">Stress CPU</button>
+                <button class="btn btn-danger" onclick="sendOp('STRESS_MEM')">Stress Mem</button>
+                <button class="btn btn-danger" onclick="sendOp('STOP_ALL_STRESS')" style="background: var(--accent-orange);">Stop All Stress</button>
+                <div style="border-left: 1px solid #555; margin: 0 10px;"></div>
+                <input type="number" id="scale-input" value="3" style="width: 50px; background: #333; color: white; border: 1px solid #555;">
+                <button class="btn" onclick="scaleApp()">Scale App Deploy</button>
+            </div>
+            
+            <h3 style="margin-top: 15px;">Application Pods (Live)</h3>
+            <div id="pod-list" style="display: flex; flex-direction: column; gap: 5px;"></div>
+        </div>
+
+        <!-- Events & Arch -->
+        <div class="panel events-panel">
+            <h2>Live Architecture</h2>
+            <div class="arch-diagram" id="arch-diagram">
+                Load Balancer -> App Pods -> Redis Primary -> Redis Replica
+            </div>
+
+            <h2>Activity Timeline</h2>
+            <div class="timeline" id="timeline"></div>
+        </div>
+    </div>
+
+    <!-- Resource Explorer (Dropdown at bottom) -->
+    <details class="panel" style="margin-top: 15px; cursor: pointer;">
+        <summary style="font-size: 1.5rem; font-weight: bold; padding: 10px 0; outline: none;">K8s Resource Explorer (Click to Expand)</summary>
+        <div style="cursor: default; padding-top: 10px;">
+            <button class="btn" onclick="fetchExplorerData()">↻ Refresh Tree</button>
+            <div id="explorer-tree" style="margin-top: 10px; display: flex; flex-direction: column; gap: 15px;">
+                <div><h3 style="margin: 0 0 5px 0; font-size: 1rem; border-bottom: 1px solid var(--border-color); padding-bottom: 5px;">Nodes</h3><div id="tree-nodes" class="tree-container">Loading...</div></div>
+                <div><h3 style="margin: 0 0 5px 0; font-size: 1rem; border-bottom: 1px solid var(--border-color); padding-bottom: 5px;">Deployments</h3><div id="tree-deployments" class="tree-container">Loading...</div></div>
+                <div><h3 style="margin: 0 0 5px 0; font-size: 1rem; border-bottom: 1px solid var(--border-color); padding-bottom: 5px;">StatefulSets</h3><div id="tree-statefulsets" class="tree-container">Loading...</div></div>
+                <div><h3 style="margin: 0 0 5px 0; font-size: 1rem; border-bottom: 1px solid var(--border-color); padding-bottom: 5px;">Services</h3><div id="tree-services" class="tree-container">Loading...</div></div>
+                <div><h3 style="margin: 0 0 5px 0; font-size: 1rem; border-bottom: 1px solid var(--border-color); padding-bottom: 5px;">Pods</h3><div id="tree-pods" class="tree-container">Loading...</div></div>
+            </div>
+        </div>
+    </details>
+
+    <!-- Details Modal -->
+    <div id="modal-overlay" onclick="closeModal()"></div>
+    <div id="details-modal">
+        <span class="close-btn" onclick="closeModal()">X Close</span>
+        <h2 id="modal-title">Details</h2>
+        <div id="modal-content"></div>
+    </div>
+
+    <div class="toast-container" id="toast-container"></div>
+    <script>
+        const connStatus = document.getElementById('connection-status');
+        const timeline = document.getElementById('timeline');
+        const explorerTree = document.getElementById('explorer-tree');
+        const podList = document.getElementById('pod-list');
+        const archDiagram = document.getElementById('arch-diagram');
+        
+        let ws;
+        let clusterState = { pods: [], deployments: [] };
+        let currentInfra = {};
+        
+        function connectWS() {
+            let wsUrl = '';
+            if (window.location.protocol === 'file:') {
+                wsUrl = 'ws://127.0.0.1:9090';
+            } else {
+                const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                wsUrl = `${protocol}//${window.location.host}`;
+            }
+            ws = new WebSocket(wsUrl);
+
+            let pingInterval;
+            let pongTimeout;
+            let reconnectTimeout;
+            
+            ws.onopen = () => {
+                connStatus.textContent = '🟢 Connected';
+                connStatus.style.color = 'var(--accent-green)';
+                showToast('WebSocket Connected', 'success');
+                
+                clearTimeout(reconnectTimeout);
+                ws.send(JSON.stringify({ type: 'admin_join' }));
+                fetchExplorerData();
+
+                pingInterval = setInterval(() => {
+                    if (ws.readyState === WebSocket.OPEN) {
+                        ws.send(JSON.stringify({ type: 'ping' }));
+                        clearTimeout(pongTimeout);
+                        pongTimeout = setTimeout(() => {
+                            ws.close();
+                        }, 3000);
+                    }
+                }, 5000);
+            };
+
+            ws.onclose = () => {
+                connStatus.textContent = '🔴 Disconnected';
+                connStatus.style.color = 'var(--accent-red)';
+                showToast('WebSocket Disconnected. Reconnecting...', 'error');
+                
+                clearInterval(pingInterval);
+                clearTimeout(pongTimeout);
+                clearTimeout(reconnectTimeout);
+                reconnectTimeout = setTimeout(connectWS, 500);
+            };
+
+            ws.onerror = (e) => {
+                console.error('WS Error', e);
+            };
+
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                if (data.type === 'pong') {
+                    clearTimeout(pongTimeout);
+                    return;
+                }
+                
+                if (data.type === 'ADMIN_EVENT') {
+                    handleAdminEvent(data.payload);
+                } else if (data.type === 'CLUSTER_STATE_UPDATE') {
+                    clusterState = data.payload;
+                    renderPodList();
+                    updateArchDiagram();
+                } else if (data.type === 'COUNT_UPDATE') {
+                    document.getElementById('stat-users').textContent = data.count;
+                } else if (data.type === 'K8S_EXPLORE_RESULT') {
+                    updateExplorerTree(data.resource, typeof data.data === 'string' ? JSON.parse(data.data) : data.data);
+                } else if (data.type === 'OP_SUCCESS') {
+                    showToast(`Operation Successful: ${data.message}`, 'success');
+                    addTimelineEvent('SYSTEM', `Operation ${data.op} succeeded: ${data.message}`, 'var(--accent-green)');
+                } else if (data.type === 'OP_ERROR') {
+                    showToast(`Operation Failed: ${data.error}`, 'error');
+                    addTimelineEvent('SYSTEM', `Operation ${data.op} failed: ${data.error}`, 'var(--accent-red)');
+                }
+            };
+        }
+
+        function handleAdminEvent(payload) {
+            if (payload.type === 'INFRA_UPDATE') {
+                currentInfra = payload;
+                document.getElementById('stat-redis-primary').textContent = payload.redisMaster;
+                document.getElementById('stat-redis-replica').textContent = payload.redisReplica;
+                document.getElementById('stat-replica-status').textContent = payload.replicaStatus;
+                
+                let repClass = payload.replicaStatus === 'Connected' ? 'healthy' : 'unhealthy';
+                document.getElementById('stat-replica-status').className = repClass;
+                
+                document.getElementById('stat-sentinel-leader').textContent = payload.sentinelLeader;
+                document.getElementById('stat-sentinels-count').textContent = payload.connectedSentinels;
+                document.getElementById('stat-redis-latency').textContent = payload.redisLatency;
+                document.getElementById('stat-redis-failovers').textContent = payload.totalFailovers;
+                document.getElementById('stat-conns').textContent = payload.totalConnections;
+                updateArchDiagram();
+                renderPodList(); // Re-render pods with new infra data
+            } else if (payload.type === 'COUNT_UPDATE') {
+                document.getElementById('stat-users').textContent = payload.count;
+            } else if (payload.type === 'USER_JOINED') {
+                addTimelineEvent('USER_JOIN', `${payload.username} <span class="timeline-arrow">↓</span> Pod ${payload.hostname} <span class="timeline-arrow">↓</span> Total Users: ${payload.count} <span class="timeline-arrow">↓</span> ${payload.latency}ms`);
+            } else if (payload.type === 'USER_LEFT') {
+                addTimelineEvent('USER_LEAVE', `${payload.username} disconnected from ${payload.hostname} <span class="timeline-arrow">↓</span> Users left: ${payload.count}`);
+            } else if (payload.type === 'USER_INCREMENT') {
+                addTimelineEvent('INCREMENT', `${payload.username} <span class="timeline-arrow">↓</span> Pod ${payload.hostname} <span class="timeline-arrow">↓</span> Redis INCR <span class="timeline-arrow">↓</span> ${payload.oldValue} &rarr; ${payload.newValue} <span class="timeline-arrow">↓</span> Broadcast to ${payload.recipients} <span class="timeline-arrow">↓</span> Total ${payload.processingLatency}ms (Redis: ${payload.redisLatency}ms)`);
+            }
+        }
+
+        function addTimelineEvent(type, htmlContent, borderCol = 'var(--accent-blue)') {
+            const time = new Date().toLocaleTimeString('en-US', { hour12: false });
+            const entry = document.createElement('div');
+            entry.className = 'timeline-event';
+            entry.style.borderLeftColor = borderCol;
+            entry.innerHTML = `<span class="timeline-time">${time}</span> [${type}]<br>${htmlContent}`;
+            timeline.prepend(entry);
+            if (timeline.childNodes.length > 50) timeline.lastChild.remove();
+        }
+
+        function renderPodList() {
+            podList.innerHTML = '';
+            document.getElementById('stat-pods').textContent = clusterState.pods.filter(p=>p.phase==='Running').length + '/' + clusterState.pods.length;
+            
+            // Group pods by prefix
+            const groups = {
+                'App Pods': clusterState.pods.filter(p => p.name.includes('app-deployment')),
+                'Redis Data': clusterState.pods.filter(p => p.name.includes('redis-')),
+                'Redis Sentinel': clusterState.pods.filter(p => p.name.includes('sentinel-')),
+                'Chaos & Others': clusterState.pods.filter(p => !p.name.includes('app-') && !p.name.includes('redis-') && !p.name.includes('sentinel-'))
+            };
+
+            Object.entries(groups).forEach(([groupName, pods]) => {
+                if (pods.length === 0) return;
+                
+                const groupHeader = document.createElement('h4');
+                groupHeader.textContent = groupName;
+                groupHeader.style.margin = '10px 0 5px 0';
+                groupHeader.style.color = 'var(--text-main)';
+                groupHeader.style.borderBottom = '1px solid var(--border-color)';
+                groupHeader.style.paddingBottom = '3px';
+                podList.appendChild(groupHeader);
+
+                pods.forEach(pod => {
+                    let podRoleTag = '';
+                    let borderColor = pod.phase === 'Running' ? 'var(--accent-green)' : 'var(--accent-orange)';
+                    if (pod.metadata && pod.metadata.labels && pod.metadata.labels.stopped === 'true') {
+                        borderColor = '#64748b'; // Slate gray for stopped
+                    }
+
+                    if (pod.name.startsWith('redis-')) {
+                        if (currentInfra.redisMaster && pod.name.startsWith(currentInfra.redisMaster)) {
+                            podRoleTag = ' <span style="color:var(--accent-green)">[In Use]</span>';
+                            borderColor = 'var(--accent-green)';
+                        } else if (currentInfra.redisReplica && currentInfra.redisReplica !== 'Unknown') {
+                            if (currentInfra.replicaStatus === 'Connected') {
+                                podRoleTag = ' <span style="color:var(--accent-blue)">[Healthy]</span>';
+                                borderColor = 'var(--accent-blue)';
+                            } else if (currentInfra.replicaStatus === 'Syncing') {
+                                podRoleTag = ' <span style="color:var(--accent-orange)">[Syncing]</span>';
+                                borderColor = 'var(--accent-orange)';
+                            } else {
+                                podRoleTag = ' <span style="color:var(--accent-red)">[Unhealthy]</span>';
+                                borderColor = 'var(--accent-red)';
+                            }
+                        } else {
+                            podRoleTag = ' <span style="color:var(--accent-red)">[Unhealthy]</span>';
+                            borderColor = 'var(--accent-red)';
+                        }
+                    }
+                    if (pod.metadata && pod.metadata.labels && pod.metadata.labels.stopped === 'true') {
+                        borderColor = '#64748b'; // Force gray if stopped, overriding redis colors
+                    }
+                    
+                    const div = document.createElement('div');
+                    div.className = 'ops-card';
+                    div.style.borderLeft = '6px solid ' + borderColor;
+                    div.style.padding = '10px';
+                    div.style.marginBottom = '5px';
+                    div.innerHTML = `
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            <strong>${pod.name}${podRoleTag}</strong>
+                            <span style="font-size:0.8rem">${pod.phase} (Restarts: ${pod.restarts})</span>
+                            <div style="display: flex; gap: 3px;">
+                                <button class="btn" onclick="sendOp('START_POD', {podName: '${pod.name}'})" style="padding:4px 8px; font-size:0.8rem; background: var(--accent-green);">Start</button>
+                                <button class="btn" onclick="sendOp('STOP_POD', {podName: '${pod.name}'})" style="padding:4px 8px; font-size:0.8rem; background: var(--accent-orange);">Stop</button>
+                                <button class="btn" onclick="sendOp('DELETE_POD', {podName: '${pod.name}'})" style="padding:4px 8px; font-size:0.8rem; background: var(--accent-red);">Restart</button>
+                                <button class="btn" onclick="sendOp('DELETE_POD', {podName: '${pod.name}'})" style="padding:4px 8px; font-size:0.8rem; background: #666;">Delete</button>
+                                <button class="btn" onclick="viewPodLogs('${pod.name}')" style="padding:4px 8px; font-size:0.8rem;">Logs</button>
+                            </div>
+                        </div>
+                        <div style="font-size:0.85rem; color:#aaa; margin-top:5px;">IP: ${pod.podIP || 'Pending'} | Image: ${pod.image.split('/').pop()}</div>
+                    `;
+                    podList.appendChild(div);
+                });
+            });
+        }
+
+        function updateArchDiagram() {
+            const mstr = document.getElementById('stat-redis-primary').textContent;
+            const rep = document.getElementById('stat-redis-replica').textContent;
+            const appPods = clusterState.pods.filter(p => p.name.includes('app-deployment')).length;
+            
+            let diag = `Users\n  ↓\nIngress / LB\n  ↓\n`;
+            for(let i=0; i<appPods; i++) diag += `[App Pod ${i+1}]  `;
+            diag += `\n  ↓\n[Redis Primary: ${mstr}]\n  ↓\n[Redis Replica: ${rep}]\n  ↓\n[Sentinels: 1, 2, 3]`;
+            archDiagram.textContent = diag;
+        }
+
+        // --- Operations & Chaos ---
+        function sendOp(op, payload = {}) {
+            ws.send(JSON.stringify({ type: 'OPERATION', op, payload }));
+        }
+
+        function scaleApp() {
+            const val = document.getElementById('scale-input').value;
+            sendOp('SCALE_APP', { replicas: val });
+        }
+
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.textContent = message;
+            container.appendChild(toast);
+            setTimeout(() => {
+                toast.style.animation = 'fadeOut 0.3s ease forwards';
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        // --- Resource Explorer ---
+        async function fetchExplorerData() {
+            if (!ws || ws.readyState !== WebSocket.OPEN) return;
+            ['nodes', 'deployments', 'services', 'statefulsets', 'pods'].forEach(res => {
+                const el = document.getElementById(`tree-${res}`);
+                if (el) el.innerHTML = '<div style="color: #64748b; font-style: italic;">Loading...</div>';
+                ws.send(JSON.stringify({ type: 'K8S_EXPLORE', resource: res }));
+            });
+        }
+
+        function updateExplorerTree(resource, data) {
+            const el = document.getElementById(`tree-${resource}`);
+            if (!el) return;
+            el.innerHTML = '';
+            
+            if (!data || !data.items || data.items.length === 0) {
+                el.innerHTML = '<div style="color: #94a3b8; font-style: italic;">No resources found</div>';
+                return;
+            }
+
+            data.items.forEach(item => {
+                const itemEl = document.createElement('div');
+                itemEl.className = 'tree-item';
+                itemEl.style.padding = '8px';
+                itemEl.style.borderBottom = '1px solid #e2e8f0';
+                itemEl.style.cursor = 'pointer';
+                itemEl.onclick = () => showModal(`${resource}: ${item.metadata.name}`, `<pre>${JSON.stringify(item, null, 2)}</pre>`);
+                
+                let details = '';
+                if (resource === 'pods') {
+                    details = `Phase: ${item.status.phase} | IP: ${item.status.podIP || 'Pending'}`;
+                } else if (resource === 'deployments') {
+                    details = `Replicas: ${item.status.readyReplicas || 0}/${item.spec.replicas} | Image: ${item.spec.template.spec.containers[0].image}`;
+                } else if (resource === 'services') {
+                    details = `Type: ${item.spec.type} | ClusterIP: ${item.spec.clusterIP}`;
+                } else if (resource === 'nodes') {
+                    details = `OS: ${item.status.nodeInfo.osImage} | Architecture: ${item.status.nodeInfo.architecture}`;
+                }
+
+                itemEl.innerHTML = `
+                    <div style="font-weight: 600; color: #1e293b;">📄 ${item.metadata.name}</div>
+                    <div style="color: #64748b; font-size: 0.85rem; margin-top: 4px;">${details}</div>
+                `;
+                el.appendChild(itemEl);
+            });
+        }
+
+        // --- Modals ---
+        function showModal(title, content) {
+            document.getElementById('modal-title').textContent = title;
+            document.getElementById('modal-content').innerHTML = content;
+            document.getElementById('modal-overlay').style.display = 'block';
+            document.getElementById('details-modal').style.display = 'block';
+        }
+
+        function closeModal() {
+            document.getElementById('modal-overlay').style.display = 'none';
+            document.getElementById('details-modal').style.display = 'none';
+        }
+
+        function viewPodLogs(podName) {
+            ws.send(JSON.stringify({ type: 'K8S_EXPLORE', resource: 'pod-logs', name: podName }));
+            showModal(`Logs: ${podName}`, 'Loading...');
+            
+            // Temporary hack to catch the log response
+            const origOnMessage = ws.onmessage;
+            ws.onmessage = (e) => {
+                const d = JSON.parse(e.data);
+                if (d.type === 'K8S_EXPLORE_RESULT' && d.resource === 'pod-logs') {
+                    document.getElementById('modal-content').innerHTML = `<pre>${d.data.logs}</pre>`;
+                    ws.onmessage = origOnMessage; // restore
+                } else {
+                    origOnMessage(e);
+                }
+            };
+        }
+
+        connectWS();
+    </script>
+</body>
+</html>

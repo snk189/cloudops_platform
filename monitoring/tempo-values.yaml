@@ -1,0 +1,39 @@
+# Grafana Tempo values for kube-prometheus-stack integration
+# Apply via: helm upgrade --install tempo grafana/tempo -n monitoring -f monitoring/tempo-values.yaml
+
+tempo:
+  reportingEnabled: false
+
+persistence:
+  enabled: true
+  size: 5Gi
+
+tempoQuery:
+  enabled: true
+
+serviceMonitor:
+  enabled: true
+  namespace: monitoring
+
+config: |
+  multitenancy_enabled: false
+  server:
+    http_listen_port: 3100
+  distributor:
+    receivers:
+      otlp:
+        protocols:
+          http:
+            endpoint: 0.0.0.0:4318
+          grpc:
+            endpoint: 0.0.0.0:4317
+  storage:
+    trace:
+      backend: local
+      local:
+        path: /var/tempo/traces
+      wal:
+        path: /var/tempo/wal
+  compactor:
+    compaction:
+      compacted_block_retention: 24h

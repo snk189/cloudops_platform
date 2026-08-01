@@ -1,0 +1,21 @@
+{{- if .Values.serviceMonitor.enabled }}
+# ServiceMonitor tells Prometheus (via kube-prometheus-stack) to scrape /metrics on every app pod
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: websocket-app-monitor
+  namespace: {{ .Values.serviceMonitor.namespace }}
+  labels:
+    release: kube-prometheus-stack   # must match the kube-prometheus-stack Helm release label
+spec:
+  namespaceSelector:
+    matchNames:
+      - {{ .Values.namespace }}
+  selector:
+    matchLabels:
+      app: websocket-node
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: {{ .Values.serviceMonitor.interval }}
+{{- end }}
